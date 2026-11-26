@@ -109,7 +109,7 @@ Même vue colorée par accuracy : `logreg-none` y paraît bon alors qu'il a le p
 
 Un balayage complémentaire (`max_depth` de 7 à 15, `n_estimators` de 100 à 500) plafonne à un recall de 0,597 : les arbres plus profonds gagnent un peu de precision mais perdent du recall. Aucun RandomForest ne dépasse le recall du champion (`logreg-balanced`, 0,628) : `register_best.py` n'a donc pas été relancé, le champion reste la version 1.
 
-**Versionner les données avec DVC.** `data/credit_clean.csv` n'est plus suivi par Git mais par DVC (`data/credit_clean.csv.dvc` contient son empreinte md5) ; le fichier est poussé sur le stockage DVC de DagsHub (`dvc push`). Les identifiants DVC sont dans `.dvc/config.local`, ignoré par Git. Le fichier brut fourni reste dans Git, puisque `credit_clean.csv` se régénère avec `prepare_data.py`.
+**Versionner les données avec DVC.** `data/credit_clean.csv` n'est plus suivi par Git mais par DVC (`data/credit_clean.csv.dvc` contient son empreinte md5) ; le fichier est poussé sur le stockage DVC de DagsHub (`dvc push`). Les identifiants DVC sont dans `.dvc/config.local`, ignoré par Git. Le fichier brut fourni est resté dans Git, comme dans le premier commit ; il pourrait lui aussi passer sous DVC de la même façon.
 
 **Relier chaque run à une version du code avec Git.** Après `git init` et un commit, le run `logreg-balanced` relancé porte le tag `mlflow.source.git.commit` = `c90a211…`, le commit dont il est issu. On sait ainsi exactement quel code a produit le run.
 
