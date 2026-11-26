@@ -131,6 +131,8 @@ Trous complétés :
 
 **Résultat avec `data/nouveaux_clients.csv`** : titre « Risque de défaut de paiement », légende « Modèle utilisé : credit-default-model, version 1 (alias champion) », métrique **Clients à risque : 3 / 5**, et le même tableau que `predict.py` (90001 → 1, 90002 → 0, 90003 → 0, 90004 → 1, 90005 → 1).
 
+![Application Streamlit : modèle champion version 1, 3 clients à risque sur 5](captures/app_streamlit_champion.png)
+
 **Q1.** Au TP 1, l'application chargeait un fichier `regression.joblib` copié à la main dans le dossier : le modèle était figé dans l'application, sans version ni lien avec son entraînement. Ici, elle charge `models:/credit-default-model@champion` depuis le Model Registry de DagsHub. Le jour où un meilleur modèle est entraîné, il suffit de l'enregistrer et de déplacer l'alias `champion` : l'application l'utilise à son prochain démarrage, sans modifier ni recopier quoi que ce soit, et elle affiche la version utilisée.
 
 **Q2.** Sans `@st.cache_resource`, chaque interaction (chargement du fichier, clic) devient lente : à chaque fois, le modèle est de nouveau téléchargé depuis DagsHub (barre « Downloading artifacts », environ 6 secondes ici) avant de prédire. En effet, Streamlit réexécute tout le script de haut en bas à chaque interaction, donc `mlflow.pyfunc.load_model()` aussi. Avec `@st.cache_resource`, le modèle est chargé une seule fois, gardé en mémoire et réutilisé par toutes les exécutions suivantes.
