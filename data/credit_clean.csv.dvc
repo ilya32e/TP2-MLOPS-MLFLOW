@@ -1,0 +1,5 @@
+outs:
+- md5: f52d409f60c87675ffc1b63efa54ced3
+  size: 2897190
+  hash: md5
+  path: credit_clean.csv
