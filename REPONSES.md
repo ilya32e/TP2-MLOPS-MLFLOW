@@ -116,3 +116,29 @@ Un balayage complémentaire (`max_depth` de 7 à 15, `n_estimators` de 100 à 50
 **Un modèle du Registry est-il automatiquement « bon » ?** Non : le Registry est un catalogue, il n'évalue rien. Avant de déplacer `champion`, il faut vérifier que le nouveau modèle bat l'ancien sur le même jeu de test et sur des données récentes, que la precision et l'AUC ne se dégradent pas, que la signature est compatible avec l'application, que les prédictions sont cohérentes sur quelques cas connus, et faire valider le changement par une personne.
 
 **DAG Airflow.** `prepare_data` → `train` (une tâche par configuration, en parallèle) → `register_best` → `predict`. Informations transmises : le chemin du fichier propre (`data/credit_clean.csv`) entre `prepare_data` et `train` ; rien d'autre ne passe directement d'une tâche à l'autre, car `register_best` retrouve les runs sur le serveur MLflow par le nom de l'expérience, et `predict` charge le modèle par son nom et son alias. Toutes les tâches partagent les trois variables d'environnement MLflow.
+
+---
+
+# TP 2 bis – Déployer le modèle champion avec Streamlit
+
+Application : `app_credit.py`, lancée avec `streamlit run app_credit.py` dans le même dossier, le même `.venv` et le même `.env` que le TP 2. Streamlit est ajouté à `requirements.txt` avec une version figée (`streamlit==1.67.0`), pour la même raison qu'en Partie 0.
+
+Trous complétés :
+
+1. `MODEL_URI = f"models:/{MODEL_NAME}@champion"`
+2. `@st.cache_resource` au-dessus de `charger_modele()`
+3. `clients["prediction_defaut"] = model.predict(clients)`
+
+**Résultat avec `data/nouveaux_clients.csv`** : titre « Risque de défaut de paiement », légende « Modèle utilisé : credit-default-model, version 1 (alias champion) », métrique **Clients à risque : 3 / 5**, et le même tableau que `predict.py` (90001 → 1, 90002 → 0, 90003 → 0, 90004 → 1, 90005 → 1).
+
+**Q1.** Au TP 1, l'application chargeait un fichier `regression.joblib` copié à la main dans le dossier : le modèle était figé dans l'application, sans version ni lien avec son entraînement. Ici, elle charge `models:/credit-default-model@champion` depuis le Model Registry de DagsHub. Le jour où un meilleur modèle est entraîné, il suffit de l'enregistrer et de déplacer l'alias `champion` : l'application l'utilise à son prochain démarrage, sans modifier ni recopier quoi que ce soit, et elle affiche la version utilisée.
+
+**Q2.** Sans `@st.cache_resource`, chaque interaction (chargement du fichier, clic) devient lente : à chaque fois, le modèle est de nouveau téléchargé depuis DagsHub (barre « Downloading artifacts », environ 6 secondes ici) avant de prédire. En effet, Streamlit réexécute tout le script de haut en bas à chaque interaction, donc `mlflow.pyfunc.load_model()` aussi. Avec `@st.cache_resource`, le modèle est chargé une seule fois, gardé en mémoire et réutilisé par toutes les exécutions suivantes.
+
+**Q3.** Le modèle attend 23 variables (plafond, âge, 6 historiques de paiement, 6 montants facturés, 6 montants payés…) : un formulaire serait long à remplir et source d'erreurs de saisie. Un CSV permet de traiter d'un coup un lot de clients, au format déjà produit par les systèmes de la banque, et garantit les mêmes colonnes que la signature du modèle.
+
+## Pour aller plus loin
+
+**Changer de champion sans toucher au code.** Le run `rf-balanced` (`max_depth=8`) a été enregistré comme version 2 de `credit-default-model`, puis l'alias `champion` déplacé sur cette version. Au redémarrage, l'application affichait « version 2 (alias champion) » et **1 / 5** clients à risque (le RandomForest est moins alarmiste : recall 0,595, precision 0,498), sans aucune modification de `app_credit.py`. L'alias a ensuite été remis sur la version 1 (`logreg-balanced`, meilleur recall), qui reste le champion ; la version 2 reste disponible dans le Registry.
+
+**Télécharger les résultats.** Un bouton `st.download_button` sous le tableau permet de récupérer les prédictions au format CSV (`predictions_clients.csv`, généré avec `clients.to_csv()`).
