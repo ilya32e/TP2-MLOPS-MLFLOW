@@ -56,6 +56,14 @@
 | rf-none | 0,341 | 0,665 | 0,774 |
 | rf-balanced | 0,595 | 0,498 | 0,775 |
 
+Runs tracés sur le serveur MLflow de DagsHub (`https://dagshub.com/ilya32e/credit-mlops.mlflow`), expérience `credit-default`. Comparaison des 4 runs (étape 19), coordonnées parallèles colorées par recall :
+
+![Comparaison des 4 runs, coloration par recall](captures/compare_4_runs_recall.png)
+
+Même vue colorée par accuracy : `logreg-none` y paraît bon alors qu'il a le plus faible recall (voir Q4).
+
+![Comparaison des 4 runs, coloration par accuracy](captures/compare_4_runs_accuracy.png)
+
 **Q5.** Meilleur recall : `logreg-balanced` (0,628). Meilleure AUC : `rf-balanced` (0,775). Recommandation : **`rf-balanced`**. Il perd 3 points de recall par rapport à `logreg-balanced` (0,595 contre 0,628), mais sa precision est nettement meilleure (0,498 contre 0,373) : il déclenche beaucoup moins de fausses alertes pour presque autant de défauts détectés, et son AUC plus élevée montre qu'il classe mieux les clients quel que soit le seuil. Si la banque ne regarde que le recall, `logreg-balanced` l'emporte : c'est le choix que fait `register_best.py`.
 
 **Q6.** `class_weight="balanced"` donne plus de poids aux erreurs sur la classe minoritaire (les défauts). Le modèle prédit « défaut » plus souvent : le recall monte fortement (0,24 → 0,63 pour logreg, 0,34 → 0,60 pour rf), mais la precision baisse (0,70 → 0,37 et 0,67 → 0,50), car davantage de clients sains sont signalés à tort. L'AUC ne bouge presque pas : le modèle ne classe pas mieux les clients, il déplace surtout son seuil de décision. On détecte plus de défauts au prix de plus de clients sains à surveiller. La vue en coordonnées parallèles de MLflow (colorée par recall) le confirme : toutes les lignes à fort recall partent de `class_weight = balanced`, quel que soit le modèle ; le choix logreg / rf joue surtout sur la precision et l'AUC.
@@ -65,6 +73,8 @@
 ## Partie 5
 
 **Résultat de `register_best.py`** : meilleur run `logreg-balanced` (recall = 0,628), enregistré comme `credit-default-model` version 1, alias `champion`.
+
+![Model Registry sur DagsHub : credit-default-model, version 1, alias champion](captures/registry_champion.png)
 
 **Résultat de `predict.py`** :
 
@@ -86,6 +96,22 @@
 4. Relancer `predict.py`, inchangé : il charge la version 2.
 
 ## Bonus
+
+**Battre le champion.** Runs supplémentaires sur DagsHub (RandomForest, `class_weight=balanced`) :
+
+| Run | n_estimators | max_depth | recall | precision | AUC |
+|---|---|---|---|---|---|
+| rf-balanced | 200 | 3 | 0,573 | 0,495 | 0,759 |
+| rf-balanced | 200 | 4 | 0,570 | 0,493 | 0,763 |
+| rf-balanced | 200 | 5 | 0,570 | 0,499 | 0,767 |
+| rf-balanced | 300 | 6 | 0,595 | 0,494 | 0,771 |
+| rf-balanced | 200 | 8 | 0,595 | 0,498 | 0,775 |
+
+Un balayage complémentaire (`max_depth` de 7 à 15, `n_estimators` de 100 à 500) plafonne à un recall de 0,597 : les arbres plus profonds gagnent un peu de precision mais perdent du recall. Aucun RandomForest ne dépasse le recall du champion (`logreg-balanced`, 0,628) : `register_best.py` n'a donc pas été relancé, le champion reste la version 1.
+
+**Versionner les données avec DVC.** `data/credit_clean.csv` n'est plus suivi par Git mais par DVC (`data/credit_clean.csv.dvc` contient son empreinte md5) ; le fichier est poussé sur le stockage DVC de DagsHub (`dvc push`). Les identifiants DVC sont dans `.dvc/config.local`, ignoré par Git. Le fichier brut fourni reste dans Git, puisque `credit_clean.csv` se régénère avec `prepare_data.py`.
+
+**Relier chaque run à une version du code avec Git.** Après `git init` et un commit, le run `logreg-balanced` relancé porte le tag `mlflow.source.git.commit` = `c90a211…`, le commit dont il est issu. On sait ainsi exactement quel code a produit le run.
 
 **Un modèle du Registry est-il automatiquement « bon » ?** Non : le Registry est un catalogue, il n'évalue rien. Avant de déplacer `champion`, il faut vérifier que le nouveau modèle bat l'ancien sur le même jeu de test et sur des données récentes, que la precision et l'AUC ne se dégradent pas, que la signature est compatible avec l'application, que les prédictions sont cohérentes sur quelques cas connus, et faire valider le changement par une personne.
 
